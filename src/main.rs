@@ -1,9 +1,9 @@
 use notify_rust::Notification;
-use image::{ RgbaImage, Rgba };
+use image::{ RgbaImage, Rgba, ImageBuffer };
 use scrap;
 use std::io::ErrorKind::WouldBlock;
 use std::thread;
-use std::time::{Duration, SystemTime, Instant};
+use std::time::{ Duration, SystemTime, Instant };
 
 fn main() {
     println!("Hello, world!");
@@ -12,8 +12,7 @@ fn main() {
 }
 
 fn scrap_test() {
-    let one_second = Duration::new(1, 0);
-    let one_frame = one_second / 60;
+    let one_frame = Duration::new(1, 0) / 60;
     
     let displays = scrap::Display::all().unwrap();
     for (i, display) in displays.iter().enumerate() {
@@ -53,26 +52,13 @@ fn scrap_test() {
 
 fn save_screen(iteration: u32, width: usize, height: usize, data: Vec<u8>) {
     println!("Saving frame {}", iteration);
-    let mut img = RgbaImage::new(width as u32, height as u32);
-    let mut x: u32 = 0;
-    let mut y: u32 = 0;
-
-    let mut i = 0;
-    while i < data.len() {
-        let rgba = [data[i + 2], data[i + 1], data[i], data[i + 3]];
-        img.put_pixel(x, y, Rgba(rgba));
-
-        x += 1;
-        if x >= width as u32 {
-            x = 0;
-            y += 1;
-        }
-
-        i += 4;
-    }
+    let img = ImageBuffer::from_fn(width as u32, height as u32, |x, y| {
+        let i = (x as usize + y as usize * width) * 4;
+        return image::Rgb([data[i + 2], data[i + 1], data[i]]);
+    });
 
     let now: std::time::Duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).expect("Couldn't get Epoch time");
-    img.save(format!("./tmp/{}_{}.png", now.as_millis(), iteration)).unwrap();
+    img.save(format!("./tmp/{}_{}.jpeg", now.as_millis(), iteration)).unwrap();
 }
 
 fn send_notification(message: &str) {

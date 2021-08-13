@@ -13,4 +13,8 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+# Custom
 /tmp/*.png
+/tmp/*.jpeg
+/tmp/*.bmp
