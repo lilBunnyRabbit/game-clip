@@ -6,6 +6,20 @@ use rgb;
 use scrap;
 use std::{fs::File, thread, time::SystemTime};
 
+pub struct ClipFrame {
+  pub frame: Vec<u8>,
+  pub delay: f64,
+}
+
+impl Clone for ClipFrame {
+  fn clone(&self) -> Self {
+    ClipFrame {
+      frame: self.frame.clone(),
+      delay: self.delay.clone()
+    }
+  }
+}
+
 pub struct WriterProgress {}
 impl gifski::progress::ProgressReporter for WriterProgress {
   fn increase(&mut self) -> bool {
@@ -57,17 +71,18 @@ pub fn get_frame_time() -> std::time::Duration {
   return std::time::Duration::new(1, 0) / FPS as u32;
 }
 
-pub fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize)) {
+pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
   let (mut collector, writer) = init_gifski(dimensions);
 
-  let frame_time = get_frame_time();
+  let mut timestamp: f64 = 0.0;
 
   let collector_thread = thread::spawn(move || {
     for (i, frame) in frames.iter().enumerate() {
-      let timestamp: f64 = i as f64 * frame_time.as_secs_f64();
-      logger::info(format!("Adding frame {} at {}, ", i, timestamp));
-
-      let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, frame);
+      if i != 0 {
+        timestamp += frame.delay;
+      }
+      
+      let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, &frame.frame);
 
       match collector.add_frame_rgba(i, imgvec, timestamp) {
         Ok(_) => logger::info(format!("Added frame {} at {}, ", i, timestamp)),

@@ -4,7 +4,7 @@ mod logger;
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use notify_rust::Notification;
 use scrap;
-use std::{io::ErrorKind::WouldBlock, thread};
+use std::{io::ErrorKind::WouldBlock, thread, time::Instant};
 
 fn main() {
   let display = match clip::get_display(0) {
@@ -21,13 +21,15 @@ fn main() {
 fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
   logger::info("Capturing frames");
 
-  let mut frames: Vec<Vec<u8>> = Vec::new();
+  let mut frames: Vec<clip::ClipFrame> = Vec::new();
 
   let device_state = DeviceState::new();
   let mut prev_keys = vec![];
 
   let max_frames = clip::SETTINGS.duration * clip::SETTINGS.fps;
   let frame_time = clip::get_frame_time();
+
+  let mut timer = Instant::now();
 
   loop {
     match capturer.frame() {
@@ -38,7 +40,12 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
           logger::info(format!("Captured frame {}", frames.len()));
         }
 
-        frames.push(frame.to_vec());
+        frames.push(clip::ClipFrame {
+          frame: frame.to_vec(),
+          delay: timer.elapsed().as_secs_f64(),
+        });
+
+        timer = Instant::now();
       }
       Err(ref e) if e.kind() == WouldBlock => {
         thread::sleep(frame_time);
