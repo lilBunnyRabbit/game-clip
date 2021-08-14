@@ -94,8 +94,8 @@ fn capture_frames(mut capturer: scrap::Capturer) -> Vec<Vec<u8>> {
 
 fn init_gifski(dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer) {
   let settings = gifski::Settings {
-    width: Some(dimensions.0 as u32),
-    height: Some(dimensions.1 as u32),
+    width: Some((dimensions.0 / 2) as u32),
+    height: Some((dimensions.1 / 2) as u32),
     quality: 100,
     fast: true,
     repeat: gifski::Repeat::Infinite,
@@ -108,15 +108,15 @@ fn init_gifski(dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer
 fn add_frames_to_collector(frames: Vec<Vec<u8>>, mut collector: gifski::Collector, dimensions: (usize, usize)) {
   println!("Adding frames to collector:");
   for (i, frame) in frames.iter().enumerate() {
-    // if i > 4 { break; }
+    if i > 3 { break; }
 
-    let timestamp: f64 = i as f64 * 0.05;
+    let timestamp: f64 = i as f64 * 0.06;
     print!("\t- frame {}: {}, ", i, timestamp);
 
     let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, frame);
     print!("imgvec, ");
 
-    match collector.add_frame_rgba(i, imgvec, 0.0) {
+    match collector.add_frame_rgba(i, imgvec, timestamp) {
       Ok(_) => print!("collector, "),
       Err(error) => panic!("Err adding frame {}", error),
     }
