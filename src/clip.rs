@@ -41,7 +41,7 @@ pub fn clip_screen(display_index: usize) {
     fps: fps,
     duration: 1,
     frame_time: Duration::new(1, 0) / fps as u32,
-    size: 100
+    size: 1
   };
 
   let display = match get_display(display_index) {
