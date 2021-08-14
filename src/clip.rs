@@ -1,3 +1,5 @@
+use crate::logger;
+
 use gifski;
 use imgref;
 use rgb;
@@ -12,11 +14,11 @@ use std::{
 pub struct SomeProgress {}
 impl gifski::progress::ProgressReporter for SomeProgress {
   fn increase(&mut self) -> bool {
-    println!("\t- progress increase");
+    logger::info("Progress increased");
     true
   }
   fn done(&mut self, msg: &str) {
-    println!("\t- progress done: {}", msg);
+    logger::info(format!("Progress done: {}", msg));
   }
 }
 
@@ -31,50 +33,42 @@ pub fn clip_screen(display_index: usize) {
 
   let frames = capture_frames(capturer);
 
-  let (collector, writer) = init_gifski(dimensions);
-
-  add_frames_to_collector(frames, collector, dimensions);
-  save_gif(writer);
+  save_gif(frames, dimensions);
 }
 
 fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
   let mut displays = scrap::Display::all().unwrap();
 
-  print!("Displays: [");
-  for (i, display) in displays.iter().enumerate() {
-    print!("{}x{}", display.width(), display.height());
-    if displays.len() != i + 1 {
-      print!(", ");
-    }
-  }
-  println!("]");
-
   if displays.len() < display_index + 1 {
     return Err("Display doesn't exist");
   }
 
-  // let display = scrap::Display::primary().expect("Couldn't find primary display.");
   let display = displays.remove(display_index);
-  println!("Selected display: {}x{}", display.width(), display.height());
+  logger::info(format!(
+    "Selected display: {}x{}",
+    display.width(),
+    display.height()
+  ));
 
   return Ok(display);
 }
 
 fn capture_frames(mut capturer: scrap::Capturer) -> Vec<Vec<u8>> {
-  let fps = 30;
+  let fps: u32 = 30;
+  let duration: usize = 1 * fps as usize;
   let one_frame = Duration::new(1, 0) / fps;
 
   let mut frames: Vec<Vec<u8>> = Vec::new();
   let start = Instant::now();
 
-  println!("Capturing frames:");
+  logger::info("Capturing frames");
   loop {
     match capturer.frame() {
       Ok(frame) => {
         frames.push(frame.to_vec());
-        println!("\t- frame {}", frames.len());
+        logger::info(format!("Captured frame {}", frames.len()));
 
-        if frames.len() == fps as usize {
+        if frames.len() == duration {
           break;
         }
       }
@@ -85,11 +79,53 @@ fn capture_frames(mut capturer: scrap::Capturer) -> Vec<Vec<u8>> {
     }
   }
 
-  println!(
-    "Finished capturing in {}s...",
+  logger::info(format!(
+    "Finished capturing frames in {}s...",
     start.elapsed().as_secs_f32()
-  );
+  ));
   return frames;
+}
+
+fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize)) {
+  let (mut collector, writer) = init_gifski(dimensions);
+
+  let collector_thread = thread::spawn(move || {
+    for (i, frame) in frames.iter().enumerate() {
+      let timestamp: f64 = i as f64 * 0.03;
+      logger::info(format!("Adding frame {} at {}, ", i, timestamp));
+
+      let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, frame);
+
+      match collector.add_frame_rgba(i, imgvec, timestamp) {
+        Ok(_) => logger::info(format!("Added frame {} at {}, ", i, timestamp)),
+        Err(error) => panic!("Err adding frame {}", error),
+      }
+    }
+
+    drop(collector);
+    logger::info("Dropped collector");
+  });
+
+  let writer_thread = thread::spawn(move || {
+    let now: std::time::Duration = SystemTime::now()
+      .duration_since(SystemTime::UNIX_EPOCH)
+      .expect("Couldn't get Epoch time");
+    let filename = format!("./tmp/{}.gif", now.as_millis());
+
+    let file = File::create(filename.as_str()).unwrap();
+    logger::info(format!("Created file '{}'", filename));
+
+    let progress_reporter: &mut dyn gifski::progress::ProgressReporter = &mut SomeProgress {};
+
+    logger::info("Writing frames");
+    match writer.write(file, progress_reporter) {
+      Ok(_) => logger::info(format!("Gif '{}' created!", filename)),
+      Err(error) => panic!("Failed to create gif: {}", error),
+    }
+  });
+
+  collector_thread.join().unwrap();
+  writer_thread.join().unwrap();
 }
 
 fn init_gifski(dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer) {
@@ -101,31 +137,8 @@ fn init_gifski(dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer
     repeat: gifski::Repeat::Infinite,
   };
 
-  println!("Gifski init");
+  logger::info("Gifski init");
   return gifski::new(settings).unwrap();
-}
-
-fn add_frames_to_collector(frames: Vec<Vec<u8>>, mut collector: gifski::Collector, dimensions: (usize, usize)) {
-  println!("Adding frames to collector:");
-  for (i, frame) in frames.iter().enumerate() {
-    if i > 3 { break; }
-
-    let timestamp: f64 = i as f64 * 0.06;
-    print!("\t- frame {}: {}, ", i, timestamp);
-
-    let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, frame);
-    print!("imgvec, ");
-
-    match collector.add_frame_rgba(i, imgvec, timestamp) {
-      Ok(_) => print!("collector, "),
-      Err(error) => panic!("Err adding frame {}", error),
-    }
-
-    println!("done");
-  }
-
-  drop(collector);
-  println!("Dropped collector");
 }
 
 fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::ImgVec<rgb::RGBA8> {
@@ -143,22 +156,4 @@ fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::ImgV
   }
 
   return imgref::Img::new(rbga_vec, width, height);
-}
-
-fn save_gif(writer: gifski::Writer) {
-  let now: std::time::Duration = SystemTime::now()
-    .duration_since(SystemTime::UNIX_EPOCH)
-    .expect("Couldn't get Epoch time");
-  let filename = format!("./tmp/{}.gif", now.as_millis());
-
-  let file = File::create(filename.as_str()).unwrap();
-  println!("Created file '{}'", filename);
-
-  let progress_reporter: &mut dyn gifski::progress::ProgressReporter = &mut SomeProgress {};
-
-  println!("Creating gif:");
-  match writer.write(file, progress_reporter) {
-    Ok(_) => println!("Gif '{}' created!", filename),
-    Err(error) => println!("Failed to create gif: {}", error),
-  }
 }

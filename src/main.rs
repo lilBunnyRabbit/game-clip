@@ -1,3 +1,4 @@
+mod logger;
 mod clip;
 
 use notify_rust::Notification;
