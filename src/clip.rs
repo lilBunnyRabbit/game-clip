@@ -4,12 +4,7 @@ use gifski;
 use imgref;
 use rgb;
 use scrap;
-use std::{
-  fs::File,
-  io::ErrorKind::WouldBlock,
-  thread,
-  time::{Duration, Instant, SystemTime},
-};
+use std::{fs::File, thread, time::SystemTime};
 
 pub struct WriterProgress {}
 impl gifski::progress::ProgressReporter for WriterProgress {
@@ -22,42 +17,26 @@ impl gifski::progress::ProgressReporter for WriterProgress {
   }
 }
 
-struct ClipSettings {
-  quality: u8,
-  fast: bool,
-  repeat: gifski::Repeat,
-  fps: usize,
-  duration: usize,
-  frame_time: std::time::Duration,
-  size: usize
+pub struct ClipSettings {
+  pub quality: u8,
+  pub fast: bool,
+  pub repeat: gifski::Repeat,
+  pub fps: usize,
+  pub duration: usize,
+  pub size: usize,
 }
 
-pub fn clip_screen(display_index: usize) {
-  let fps = 30;
-  let settings: ClipSettings = ClipSettings {
-    quality: 100,
-    fast: true,
-    repeat: gifski::Repeat::Infinite,
-    fps: fps,
-    duration: 1,
-    frame_time: Duration::new(1, 0) / fps as u32,
-    size: 1
-  };
+static FPS: usize = 30;
+pub static SETTINGS: ClipSettings = ClipSettings {
+  quality: 100,
+  fast: true,
+  repeat: gifski::Repeat::Infinite,
+  fps: FPS,
+  duration: 5,
+  size: 1,
+};
 
-  let display = match get_display(display_index) {
-    Ok(display) => display,
-    Err(error) => panic!("Failed to get the display: {}", error),
-  };
-
-  let capturer = scrap::Capturer::new(display).unwrap();
-  let dimensions = (capturer.width(), capturer.height());
-
-  let frames = capture_frames(capturer, &settings);
-
-  save_gif(frames, dimensions, settings);
-}
-
-fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
+pub fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
   let mut displays = scrap::Display::all().unwrap();
 
   if displays.len() < display_index + 1 {
@@ -74,41 +53,18 @@ fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
   return Ok(display);
 }
 
-fn capture_frames(mut capturer: scrap::Capturer, settings: &ClipSettings) -> Vec<Vec<u8>> {
-  let mut frames: Vec<Vec<u8>> = Vec::new();
-  let start = Instant::now();
-
-  logger::info("Capturing frames");
-  loop {
-    match capturer.frame() {
-      Ok(frame) => {
-        frames.push(frame.to_vec());
-        logger::info(format!("Captured frame {}", frames.len()));
-
-        if frames.len() == settings.duration * settings.fps {
-          break;
-        }
-      }
-      Err(ref e) if e.kind() == WouldBlock => {
-        thread::sleep(settings.frame_time);
-      }
-      Err(_) => break,
-    }
-  }
-
-  logger::info(format!(
-    "Finished capturing frames in {}s...",
-    start.elapsed().as_secs_f32()
-  ));
-  return frames;
+pub fn get_frame_time() -> std::time::Duration {
+  return std::time::Duration::new(1, 0) / FPS as u32;
 }
 
-fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize), settings: ClipSettings) {
-  let (mut collector, writer) = init_gifski(dimensions, &settings);
+pub fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize)) {
+  let (mut collector, writer) = init_gifski(dimensions);
+
+  let frame_time = get_frame_time();
 
   let collector_thread = thread::spawn(move || {
     for (i, frame) in frames.iter().enumerate() {
-      let timestamp: f64 = i as f64 * settings.frame_time.as_secs_f64();
+      let timestamp: f64 = i as f64 * frame_time.as_secs_f64();
       logger::info(format!("Adding frame {} at {}, ", i, timestamp));
 
       let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, frame);
@@ -145,17 +101,19 @@ fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize), settings: ClipSett
   writer_thread.join().unwrap();
 }
 
-fn init_gifski(dimensions: (usize, usize), settings: &ClipSettings) -> (gifski::Collector, gifski::Writer) {
-  let settings = gifski::Settings {
-    width: Some((dimensions.0 / settings.size) as u32),
-    height: Some((dimensions.1 / settings.size) as u32),
-    quality: settings.quality,
-    fast: settings.fast,
-    repeat: settings.repeat,
+fn init_gifski(_dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer) {
+  let gif_settings = gifski::Settings {
+    // width: Some((dimensions.0 / SETTINGS.size) as u32),
+    width: Some(640),
+    // height: Some((dimensions.1 / SETTINGS.size) as u32),
+    height: Some(360),
+    quality: SETTINGS.quality,
+    fast: SETTINGS.fast,
+    repeat: SETTINGS.repeat,
   };
 
   logger::info("Gifski init");
-  return gifski::new(settings).unwrap();
+  return gifski::new(gif_settings).unwrap();
 }
 
 fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::ImgVec<rgb::RGBA8> {

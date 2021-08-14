@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use chrono::prelude::Utc;
+use std::thread;
 
 pub fn info<S: AsRef<str>>(msg: S) {
   log("INFO", msg)
@@ -15,5 +16,6 @@ pub fn debug<S: AsRef<str>>(msg: S) {
 }
 
 fn log<S: AsRef<str>>(typ: &str, msg: S) {
-  println!("[{}] {:<5} | {}", Utc::now().format("%F %T"), typ, msg.as_ref());
+  let thread_id = thread::current().id();
+  println!("[{}] {:<5} | {:?} | {}", Utc::now().format("%F %T"), typ, thread_id, msg.as_ref());
 }
