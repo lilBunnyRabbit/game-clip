@@ -8,5 +8,7 @@ edition = "2018"
 
 [dependencies]
 notify-rust = "4"
-image = "0.23.14"
 scrap = "0.5.0"
+gifski = "1.4.3"
+imgref = "1.9.1"
+rgb = "0.8.27"
