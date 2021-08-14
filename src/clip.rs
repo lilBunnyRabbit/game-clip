@@ -29,6 +29,7 @@ struct ClipSettings {
   fps: usize,
   duration: usize,
   frame_time: std::time::Duration,
+  size: usize
 }
 
 pub fn clip_screen(display_index: usize) {
@@ -40,6 +41,7 @@ pub fn clip_screen(display_index: usize) {
     fps: fps,
     duration: 1,
     frame_time: Duration::new(1, 0) / fps as u32,
+    size: 100
   };
 
   let display = match get_display(display_index) {
@@ -145,8 +147,8 @@ fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize), settings: ClipSett
 
 fn init_gifski(dimensions: (usize, usize), settings: &ClipSettings) -> (gifski::Collector, gifski::Writer) {
   let settings = gifski::Settings {
-    width: Some((dimensions.0 / 2) as u32),
-    height: Some((dimensions.1 / 2) as u32),
+    width: Some((dimensions.0 / settings.size) as u32),
+    height: Some((dimensions.1 / settings.size) as u32),
     quality: settings.quality,
     fast: settings.fast,
     repeat: settings.repeat,
