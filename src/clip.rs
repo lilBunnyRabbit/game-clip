@@ -11,8 +11,8 @@ use std::{
   time::{Duration, Instant, SystemTime},
 };
 
-pub struct SomeProgress {}
-impl gifski::progress::ProgressReporter for SomeProgress {
+pub struct WriterProgress {}
+impl gifski::progress::ProgressReporter for WriterProgress {
   fn increase(&mut self) -> bool {
     logger::info("Progress increased");
     true
@@ -22,7 +22,26 @@ impl gifski::progress::ProgressReporter for SomeProgress {
   }
 }
 
+struct ClipSettings {
+  quality: u8,
+  fast: bool,
+  repeat: gifski::Repeat,
+  fps: usize,
+  duration: usize,
+  frame_time: std::time::Duration,
+}
+
 pub fn clip_screen(display_index: usize) {
+  let fps = 30;
+  let settings: ClipSettings = ClipSettings {
+    quality: 100,
+    fast: true,
+    repeat: gifski::Repeat::Infinite,
+    fps: fps,
+    duration: 1,
+    frame_time: Duration::new(1, 0) / fps as u32,
+  };
+
   let display = match get_display(display_index) {
     Ok(display) => display,
     Err(error) => panic!("Failed to get the display: {}", error),
@@ -31,9 +50,9 @@ pub fn clip_screen(display_index: usize) {
   let capturer = scrap::Capturer::new(display).unwrap();
   let dimensions = (capturer.width(), capturer.height());
 
-  let frames = capture_frames(capturer);
+  let frames = capture_frames(capturer, &settings);
 
-  save_gif(frames, dimensions);
+  save_gif(frames, dimensions, settings);
 }
 
 fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
@@ -53,11 +72,7 @@ fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
   return Ok(display);
 }
 
-fn capture_frames(mut capturer: scrap::Capturer) -> Vec<Vec<u8>> {
-  let fps: u32 = 30;
-  let duration: usize = 1 * fps as usize;
-  let one_frame = Duration::new(1, 0) / fps;
-
+fn capture_frames(mut capturer: scrap::Capturer, settings: &ClipSettings) -> Vec<Vec<u8>> {
   let mut frames: Vec<Vec<u8>> = Vec::new();
   let start = Instant::now();
 
@@ -68,12 +83,12 @@ fn capture_frames(mut capturer: scrap::Capturer) -> Vec<Vec<u8>> {
         frames.push(frame.to_vec());
         logger::info(format!("Captured frame {}", frames.len()));
 
-        if frames.len() == duration {
+        if frames.len() == settings.duration * settings.fps {
           break;
         }
       }
       Err(ref e) if e.kind() == WouldBlock => {
-        thread::sleep(one_frame);
+        thread::sleep(settings.frame_time);
       }
       Err(_) => break,
     }
@@ -86,12 +101,12 @@ fn capture_frames(mut capturer: scrap::Capturer) -> Vec<Vec<u8>> {
   return frames;
 }
 
-fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize)) {
-  let (mut collector, writer) = init_gifski(dimensions);
+fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize), settings: ClipSettings) {
+  let (mut collector, writer) = init_gifski(dimensions, &settings);
 
   let collector_thread = thread::spawn(move || {
     for (i, frame) in frames.iter().enumerate() {
-      let timestamp: f64 = i as f64 * 0.03;
+      let timestamp: f64 = i as f64 * settings.frame_time.as_secs_f64();
       logger::info(format!("Adding frame {} at {}, ", i, timestamp));
 
       let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, frame);
@@ -115,7 +130,7 @@ fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize)) {
     let file = File::create(filename.as_str()).unwrap();
     logger::info(format!("Created file '{}'", filename));
 
-    let progress_reporter: &mut dyn gifski::progress::ProgressReporter = &mut SomeProgress {};
+    let progress_reporter: &mut dyn gifski::progress::ProgressReporter = &mut WriterProgress {};
 
     logger::info("Writing frames");
     match writer.write(file, progress_reporter) {
@@ -128,13 +143,13 @@ fn save_gif(frames: Vec<Vec<u8>>, dimensions: (usize, usize)) {
   writer_thread.join().unwrap();
 }
 
-fn init_gifski(dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer) {
+fn init_gifski(dimensions: (usize, usize), settings: &ClipSettings) -> (gifski::Collector, gifski::Writer) {
   let settings = gifski::Settings {
     width: Some((dimensions.0 / 2) as u32),
     height: Some((dimensions.1 / 2) as u32),
-    quality: 100,
-    fast: true,
-    repeat: gifski::Repeat::Infinite,
+    quality: settings.quality,
+    fast: settings.fast,
+    repeat: settings.repeat,
   };
 
   logger::info("Gifski init");
