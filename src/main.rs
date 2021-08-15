@@ -2,13 +2,14 @@ mod clip;
 mod logger;
 mod utils;
 mod config;
+mod compression;
 
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use scrap;
 use std::{io::ErrorKind::WouldBlock, thread, time::{Instant, Duration}};
 
 fn main() {
-  let display = match clip::get_display(0) {
+  let display = match clip::get_display(1) {
     Ok(display) => display,
     Err(error) => panic!("Failed to get the display: {}", error),
   };
@@ -48,6 +49,8 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
           delay: timer.elapsed().as_secs_f64(),
         });
 
+        clip::save_raw(frames.clone(), dimensions).unwrap(); break;
+
         timer = Instant::now();
       }
       Err(ref e) if e.kind() == WouldBlock => {
@@ -67,7 +70,7 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
         let cloned_frames = frames.clone();
         thread::spawn(move || {
           utils::send_notification("Saving clip");
-          clip::save_gif(cloned_frames, dimensions);
+          clip::save_raw(cloned_frames, dimensions).expect("Failed to save raw gif");
         });
       }
     }

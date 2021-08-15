@@ -2,11 +2,14 @@ use crate::config;
 use crate::logger;
 use crate::utils;
 
+use chrono::prelude::{DateTime, Local};
 use gifski;
 use imgref;
 use rgb;
 use scrap;
+use std::io::{Error, Write};
 use std::{fs::File, thread, time::SystemTime};
+use std::fmt;
 
 pub struct ClipFrame {
   pub frame: Vec<u8>,
@@ -126,4 +129,51 @@ fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::ImgV
   }
 
   return imgref::Img::new(rbga_vec, width, height);
+}
+
+pub fn save_raw(frames: Vec<ClipFrame>, dimensions: (usize, usize)) -> Result<(), Error> {
+  let local: DateTime<Local> = Local::now();
+  let filename = format!("./tmp/{}-test.gc", local.format("%F-%H-%M-%S"));
+  // let mut file = File::create(filename)?;
+
+  let mut buffer: Vec<u8> = Vec::new();
+  buffer.extend(dimensions.0.to_be_bytes()); // Width 8B
+  buffer.extend(dimensions.1.to_be_bytes()); // Height 8B
+
+  let mut timestamp: f64 = 0.0;
+  for (i, frame) in frames.iter().enumerate() {
+    if i != 0 {
+      timestamp += frame.delay;
+    }
+
+    logger::info(format!("Added frame {} at {} to buffer ({}MB)", i, timestamp, buffer.len() / 1024 / 1024));
+
+    buffer.extend(timestamp.to_be_bytes()); // Delay 8B
+    buffer.extend(&frame.frame); // Frame width * height * 4B
+  }
+
+  println!("Buffer size: {}B", buffer.len());
+  // file.write_all(&buffer)?;
+  // write!(file, "{}{}", dimensions.0, dimensions.1);
+  Ok(())
+}
+
+
+fn clip_frame_to_rgba_string(clip_frame: &ClipFrame, timestamp: f64) -> String {
+  let mut string_frame = String::from(format!("{}", timestamp));
+  let frame_len = clip_frame.frame.len();
+  let mut i = 0;
+  while i < frame_len {
+    string_frame.push_str(&format!(
+      " {} {} {} {}",
+      clip_frame.frame[i + 2],
+      clip_frame.frame[i + 1],
+      clip_frame.frame[i],
+      clip_frame.frame[i + 3]
+    ));
+
+    i += 4;
+  }
+
+  return string_frame;
 }

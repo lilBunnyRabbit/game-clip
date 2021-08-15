@@ -1,0 +1,7 @@
+quality = 100
+fast = true
+repeat = "infinite"
+fps = 30
+duration = 5
+width = 640
+height = 360
