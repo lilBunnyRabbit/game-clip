@@ -1,15 +1,21 @@
 mod clip;
+mod compression;
+mod config;
 mod logger;
 mod utils;
-mod config;
-mod compression;
 
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use scrap;
-use std::{io::ErrorKind::WouldBlock, thread, time::{Instant, Duration}};
+use std::{
+  io::ErrorKind::WouldBlock,
+  thread,
+  time::{Duration, Instant},
+};
 
 fn main() {
-  let display = match clip::get_display(1) {
+  // let buffer: Vec<u8> = vec![3, 1, 2, 5, 1, 3, 1, 4, 1, 2, 5, 1, 5, 5, 1, 5, 5, 1, 4];
+  // compression::lz77(buffer);
+  let display = match clip::get_display(0) {
     Ok(display) => display,
     Err(error) => panic!("Failed to get the display: {}", error),
   };
@@ -49,8 +55,6 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
           delay: timer.elapsed().as_secs_f64(),
         });
 
-        clip::save_raw(frames.clone(), dimensions).unwrap(); break;
-
         timer = Instant::now();
       }
       Err(ref e) if e.kind() == WouldBlock => {
@@ -62,15 +66,18 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
     let keys = device_state.get_keys();
     if keys != prev_keys {
       if keys.len() == 3
-        && keys.contains(&Keycode::LAlt)
-        && keys.contains(&Keycode::G)
-        && keys.contains(&Keycode::C)
+        && (keys.contains(&Keycode::Numpad7)
+          && keys.contains(&Keycode::Numpad8)
+          && keys.contains(&Keycode::Numpad9))
+        || (keys.contains(&Keycode::Key7)
+          && keys.contains(&Keycode::Key8)
+          && keys.contains(&Keycode::Key9))
       {
         print!("{:?}", keys);
         let cloned_frames = frames.clone();
         thread::spawn(move || {
           utils::send_notification("Saving clip");
-          clip::save_raw(cloned_frames, dimensions).expect("Failed to save raw gif");
+          clip::save_gif(cloned_frames, dimensions);
         });
       }
     }
