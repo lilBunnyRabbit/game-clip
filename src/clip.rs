@@ -1,4 +1,6 @@
+use crate::config;
 use crate::logger;
+use crate::utils;
 
 use gifski;
 use imgref;
@@ -15,7 +17,7 @@ impl Clone for ClipFrame {
   fn clone(&self) -> Self {
     ClipFrame {
       frame: self.frame.clone(),
-      delay: self.delay.clone()
+      delay: self.delay.clone(),
     }
   }
 }
@@ -30,25 +32,6 @@ impl gifski::progress::ProgressReporter for WriterProgress {
     logger::info(format!("Progress done: {}", msg));
   }
 }
-
-pub struct ClipSettings {
-  pub quality: u8,
-  pub fast: bool,
-  pub repeat: gifski::Repeat,
-  pub fps: usize,
-  pub duration: usize,
-  pub size: usize,
-}
-
-static FPS: usize = 30;
-pub static SETTINGS: ClipSettings = ClipSettings {
-  quality: 100,
-  fast: true,
-  repeat: gifski::Repeat::Infinite,
-  fps: FPS,
-  duration: 5,
-  size: 1,
-};
 
 pub fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
   let mut displays = scrap::Display::all().unwrap();
@@ -67,10 +50,6 @@ pub fn get_display(display_index: usize) -> Result<scrap::Display, &'static str>
   return Ok(display);
 }
 
-pub fn get_frame_time() -> std::time::Duration {
-  return std::time::Duration::new(1, 0) / FPS as u32;
-}
-
 pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
   let (mut collector, writer) = init_gifski(dimensions);
 
@@ -81,7 +60,6 @@ pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
       if i != 0 {
         timestamp += frame.delay;
       }
-      
       let imgvec = frame_to_imgvec(dimensions.0, dimensions.1, &frame.frame);
 
       match collector.add_frame_rgba(i, imgvec, timestamp) {
@@ -107,7 +85,10 @@ pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
 
     logger::info("Writing frames");
     match writer.write(file, progress_reporter) {
-      Ok(_) => logger::info(format!("Gif '{}' created!", filename)),
+      Ok(_) => {
+        logger::info(format!("Gif '{}' created!", filename));
+        utils::send_notification(format!("Gif '{}' created!", filename).as_str());
+      }
       Err(error) => panic!("Failed to create gif: {}", error),
     }
   });
@@ -117,14 +98,13 @@ pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
 }
 
 fn init_gifski(_dimensions: (usize, usize)) -> (gifski::Collector, gifski::Writer) {
+  let config = config::get();
   let gif_settings = gifski::Settings {
-    // width: Some((dimensions.0 / SETTINGS.size) as u32),
-    width: Some(640),
-    // height: Some((dimensions.1 / SETTINGS.size) as u32),
-    height: Some(360),
-    quality: SETTINGS.quality,
-    fast: SETTINGS.fast,
-    repeat: SETTINGS.repeat,
+    width: Some(config.width),
+    height: Some(config.height),
+    quality: config.quality,
+    fast: config.fast,
+    repeat: config.repeat,
   };
 
   logger::info("Gifski init");

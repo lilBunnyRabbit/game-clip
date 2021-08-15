@@ -1,10 +1,11 @@
 mod clip;
 mod logger;
+mod utils;
+mod config;
 
 use device_query::{DeviceQuery, DeviceState, Keycode};
-use notify_rust::Notification;
 use scrap;
-use std::{io::ErrorKind::WouldBlock, thread, time::Instant};
+use std::{io::ErrorKind::WouldBlock, thread, time::{Instant, Duration}};
 
 fn main() {
   let display = match clip::get_display(0) {
@@ -26,8 +27,10 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
   let device_state = DeviceState::new();
   let mut prev_keys = vec![];
 
-  let max_frames = clip::SETTINGS.duration * clip::SETTINGS.fps;
-  let frame_time = clip::get_frame_time();
+  let config = config::get();
+
+  let max_frames = config.duration * config.fps as usize;
+  let frame_time = Duration::new(1, 0) / config.fps;
 
   let mut timer = Instant::now();
 
@@ -63,18 +66,11 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
         print!("{:?}", keys);
         let cloned_frames = frames.clone();
         thread::spawn(move || {
-          send_notification("Clipping screen");
+          utils::send_notification("Saving clip");
           clip::save_gif(cloned_frames, dimensions);
         });
       }
     }
     prev_keys = keys;
   }
-}
-
-fn send_notification(message: &str) {
-  match Notification::new().summary(message).show() {
-    Ok(_) => {}
-    Err(_) => {}
-  };
 }
