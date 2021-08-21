@@ -10,7 +10,6 @@ where
   T: std::fmt::Display + Clone,
 {
   pub fn new(capacity: usize) -> Self {
-    println!("New CircularBuffer with capacity {}", capacity);
     CircularBuffer {
       capacity,
       buffer: Vec::with_capacity(capacity),

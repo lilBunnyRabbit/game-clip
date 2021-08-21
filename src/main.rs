@@ -1,8 +1,5 @@
-mod circular_buffer;
 mod clip;
-mod compression;
 mod config;
-mod logger;
 mod utils;
 
 use device_query::{DeviceQuery, DeviceState, Keycode};
@@ -12,6 +9,7 @@ use std::{
   thread,
   time::{Duration, Instant},
 };
+use utils::{circular_buffer, logger, notification};
 
 fn main() {
   let display = match clip::get_display(0) {
@@ -32,7 +30,7 @@ enum Actions {
 }
 
 fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
-  logger::info("Capturing frames");
+  utils::logger::info("Capturing frames");
   let config = config::get();
 
   let mut frames: circular_buffer::CircularBuffer<clip::ClipFrame> =
@@ -69,7 +67,7 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
         print!("{:?}", keys);
         let cloned_frames = frames.clone_buffer();
         thread::spawn(move || {
-          utils::send_notification("Saving clip");
+          notification::send_notification("Saving clip");
           clip::save_gif(cloned_frames, dimensions);
         });
       }

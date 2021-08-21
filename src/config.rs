@@ -8,6 +8,7 @@ pub struct Config {
   pub duration: usize, // in seconds
   pub width: u32,
   pub height: u32,
+  pub path: String
 }
 
 pub fn get() -> Config {
@@ -19,6 +20,7 @@ pub fn get() -> Config {
     fps: 60,
     duration: 1,
     width: 640,
-    height: 360
-  }
+    height: 360,
+    path: String::from("./tmp/")
+  };
 }

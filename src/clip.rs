@@ -1,6 +1,6 @@
 use crate::config;
 use crate::logger;
-use crate::utils;
+use crate::utils::notification;
 
 use chrono::prelude::{DateTime, Local};
 use gifski;
@@ -60,6 +60,7 @@ pub fn get_display(display_index: usize) -> Result<scrap::Display, &'static str>
 }
 
 pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
+  let config = config::get();
   let (mut collector, writer) = init_gifski(dimensions);
 
   let mut timestamp: f64 = 0.0;
@@ -84,7 +85,7 @@ pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
     let now: std::time::Duration = SystemTime::now()
       .duration_since(SystemTime::UNIX_EPOCH)
       .expect("Couldn't get Epoch time");
-    let filename = format!("./tmp/{}.gif", now.as_millis());
+    let filename = format!("{}{}.gif", config.path, now.as_millis());
 
     let file = File::create(filename.as_str()).unwrap();
     logger::info(format!("Created file '{}'", filename));
@@ -95,7 +96,7 @@ pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
     match writer.write(file, progress_reporter) {
       Ok(_) => {
         logger::info(format!("Gif '{}' created!", filename));
-        utils::send_notification(format!("Gif '{}' created!", filename).as_str());
+        notification::send_notification(format!("Gif '{}' created!", filename).as_str());
       }
       Err(error) => panic!("Failed to create gif: {}", error),
     }
