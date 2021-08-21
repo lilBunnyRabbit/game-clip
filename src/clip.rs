@@ -7,9 +7,9 @@ use gifski;
 use imgref;
 use rgb;
 use scrap;
-use std::io::{Error, Write};
-use std::{fs::File, thread, time::SystemTime};
 use std::fmt;
+use std::io::Error;
+use std::{fs::File, thread, time::SystemTime};
 
 pub struct ClipFrame {
   pub frame: Vec<u8>,
@@ -22,6 +22,12 @@ impl Clone for ClipFrame {
       frame: self.frame.clone(),
       delay: self.delay.clone(),
     }
+  }
+}
+
+impl std::fmt::Display for ClipFrame {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{{ size: {}, delay: {} }}", self.frame.len(), self.delay)
   }
 }
 
@@ -70,7 +76,6 @@ pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
         Err(error) => panic!("Err adding frame {}", error),
       }
     }
-
     drop(collector);
     logger::info("Dropped collector");
   });
@@ -131,9 +136,9 @@ fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::ImgV
   return imgref::Img::new(rbga_vec, width, height);
 }
 
-pub fn save_raw(frames: Vec<ClipFrame>, dimensions: (usize, usize)) -> Result<(), Error> {
+pub fn _save_raw(frames: Vec<ClipFrame>, dimensions: (usize, usize)) -> Result<(), Error> {
   let local: DateTime<Local> = Local::now();
-  let filename = format!("./tmp/{}-test.gc", local.format("%F-%H-%M-%S"));
+  let _filename = format!("./tmp/{}-test.gc", local.format("%F-%H-%M-%S"));
   // let mut file = File::create(filename)?;
 
   let mut buffer: Vec<u8> = Vec::new();
@@ -146,7 +151,12 @@ pub fn save_raw(frames: Vec<ClipFrame>, dimensions: (usize, usize)) -> Result<()
       timestamp += frame.delay;
     }
 
-    logger::info(format!("Added frame {} at {} to buffer ({}MB)", i, timestamp, buffer.len() / 1024 / 1024));
+    logger::info(format!(
+      "Added frame {} at {} to buffer ({}MB)",
+      i,
+      timestamp,
+      buffer.len() / 1024 / 1024
+    ));
 
     buffer.extend(timestamp.to_be_bytes()); // Delay 8B
     buffer.extend(&frame.frame); // Frame width * height * 4B
@@ -158,8 +168,7 @@ pub fn save_raw(frames: Vec<ClipFrame>, dimensions: (usize, usize)) -> Result<()
   Ok(())
 }
 
-
-fn clip_frame_to_rgba_string(clip_frame: &ClipFrame, timestamp: f64) -> String {
+fn _clip_frame_to_rgba_string(clip_frame: &ClipFrame, timestamp: f64) -> String {
   let mut string_frame = String::from(format!("{}", timestamp));
   let frame_len = clip_frame.frame.len();
   let mut i = 0;

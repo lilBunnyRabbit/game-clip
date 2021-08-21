@@ -1,3 +1,4 @@
+mod circular_buffer;
 mod clip;
 mod compression;
 mod config;
@@ -13,8 +14,6 @@ use std::{
 };
 
 fn main() {
-  // let buffer: Vec<u8> = vec![3, 1, 2, 5, 1, 3, 1, 4, 1, 2, 5, 1, 5, 5, 1, 5, 5, 1, 4];
-  // compression::lz77(buffer);
   let display = match clip::get_display(0) {
     Ok(display) => display,
     Err(error) => panic!("Failed to get the display: {}", error),
@@ -26,17 +25,22 @@ fn main() {
   capture_frames(capturer, dimensions);
 }
 
+enum Actions {
+  SaveGif,
+  _SaveRaw,
+  None,
+}
+
 fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
   logger::info("Capturing frames");
-
-  let mut frames: Vec<clip::ClipFrame> = Vec::new();
-
-  let device_state = DeviceState::new();
-  let mut prev_keys = vec![];
-
   let config = config::get();
 
-  let max_frames = config.duration * config.fps as usize;
+  let mut frames: circular_buffer::CircularBuffer<clip::ClipFrame> =
+    circular_buffer::CircularBuffer::new(config.duration * config.fps as usize);
+
+  let device_state = DeviceState::new();
+  let mut prev_keys: Vec<device_query::Keycode> = vec![];
+
   let frame_time = Duration::new(1, 0) / config.fps;
 
   let mut timer = Instant::now();
@@ -44,43 +48,61 @@ fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize)) {
   loop {
     match capturer.frame() {
       Ok(frame) => {
-        if frames.len() == max_frames {
-          frames.remove(0);
-        } else {
-          logger::info(format!("Captured frame {}", frames.len()));
-        }
-
-        frames.push(clip::ClipFrame {
+        let delay = timer.elapsed().as_secs_f64();
+        frames.add(clip::ClipFrame {
           frame: frame.to_vec(),
-          delay: timer.elapsed().as_secs_f64(),
+          delay: delay,
         });
 
+        println!("FPS | {}", (1.0 / delay).round());
+
         timer = Instant::now();
-      }
-      Err(ref e) if e.kind() == WouldBlock => {
         thread::sleep(frame_time);
       }
+      Err(ref e) if e.kind() == WouldBlock => {}
       Err(_) => break,
     }
 
     let keys = device_state.get_keys();
-    if keys != prev_keys {
-      if keys.len() == 3
-        && (keys.contains(&Keycode::Numpad7)
-          && keys.contains(&Keycode::Numpad8)
-          && keys.contains(&Keycode::Numpad9))
-        || (keys.contains(&Keycode::Key7)
-          && keys.contains(&Keycode::Key8)
-          && keys.contains(&Keycode::Key9))
-      {
+    match match_keys(&keys, &prev_keys) {
+      Actions::SaveGif => {
         print!("{:?}", keys);
-        let cloned_frames = frames.clone();
+        let cloned_frames = frames.clone_buffer();
         thread::spawn(move || {
           utils::send_notification("Saving clip");
           clip::save_gif(cloned_frames, dimensions);
         });
       }
+      Actions::_SaveRaw => {}
+      Actions::None => {}
     }
     prev_keys = keys;
   }
+}
+
+fn match_keys(
+  keys: &Vec<device_query::Keycode>,
+  prev_keys: &Vec<device_query::Keycode>,
+) -> Actions {
+  if keys != prev_keys {
+    return Actions::None;
+  }
+
+  if keys.len() == 3 {
+    if keys.contains(&Keycode::Numpad7)
+      && keys.contains(&Keycode::Numpad8)
+      && keys.contains(&Keycode::Numpad9)
+    {
+      return Actions::SaveGif;
+    }
+
+    if keys.contains(&Keycode::Key7)
+      && keys.contains(&Keycode::Key8)
+      && keys.contains(&Keycode::Key9)
+    {
+      return Actions::SaveGif;
+    }
+  }
+
+  return Actions::None;
 }

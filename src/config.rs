@@ -17,7 +17,7 @@ pub fn get() -> Config {
     fast: true,
     repeat: gifski::Repeat::Infinite,
     fps: 60,
-    duration: 3,
+    duration: 1,
     width: 640,
     height: 360
   }
