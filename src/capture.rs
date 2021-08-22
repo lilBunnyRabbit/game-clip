@@ -44,10 +44,9 @@ pub fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize))
         fps_display.add(1.0 / delay);
 
         timer = Instant::now();
-      }
-      Err(ref e) if e.kind() == WouldBlock => {
         thread::sleep(frame_time);
       }
+      Err(ref e) if e.kind() == WouldBlock => {}
       Err(_) => break,
     }
 
