@@ -1,5 +1,6 @@
 use crate::clip;
 use crate::config;
+use crate::frame;
 use crate::utils;
 
 use device_query::{DeviceQuery, DeviceState, Keycode};
@@ -21,7 +22,7 @@ pub fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize))
   logger::info("Capturing frames");
   let config = config::get();
 
-  let mut frames: CircularBuffer<clip::ClipFrame> =
+  let mut frames: CircularBuffer<frame::ClipFrame> =
     CircularBuffer::new(config.duration * config.fps as usize);
 
   let device_state = DeviceState::new();
@@ -35,7 +36,7 @@ pub fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize))
     match capturer.frame() {
       Ok(frame) => {
         let delay = timer.elapsed().as_secs_f64();
-        frames.add(clip::ClipFrame {
+        frames.add(frame::ClipFrame {
           frame: frame.to_vec(),
           delay: delay,
         });

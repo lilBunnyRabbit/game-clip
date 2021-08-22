@@ -1,6 +1,7 @@
 mod capture;
 mod clip;
 mod config;
+mod frame;
 mod utils;
 
 use scrap;
