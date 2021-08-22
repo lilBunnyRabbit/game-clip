@@ -31,17 +31,21 @@ fn init_gifski(_dimensions: (usize, usize)) -> (gifski::Collector, gifski::Write
 }
 
 pub fn save_gif(frames: Vec<frame::ClipFrame>, dimensions: (usize, usize)) {
+  notification::send_notification("Saving Clip!");
   let config = config::get();
   let (mut collector, writer) = init_gifski(dimensions);
 
   let mut timestamp: f64 = 0.0;
 
+  // Adding frames to collector
   let collector_thread = thread::spawn(move || {
     for (i, frame) in frames.iter().enumerate() {
+      // First frame has no delay
       if i != 0 {
         timestamp += frame.delay;
       }
-      let imgvec = frame::frame_to_imgvec(dimensions.0, dimensions.1, &frame.frame);
+
+      let imgvec = frame::frame_to_imgvec(&frame.frame, dimensions);
 
       match collector.add_frame_rgba(i, imgvec, timestamp) {
         Ok(_) => logger::info(format!("Added frame {} at {}, ", i, timestamp)),
@@ -52,6 +56,7 @@ pub fn save_gif(frames: Vec<frame::ClipFrame>, dimensions: (usize, usize)) {
     logger::info("Dropped collector");
   });
 
+  // Writing frames
   let writer_thread = thread::spawn(move || {
     let now: std::time::Duration = SystemTime::now()
       .duration_since(SystemTime::UNIX_EPOCH)
@@ -83,5 +88,5 @@ pub fn save_raw(frames: Vec<frame::ClipFrame>, dimensions: (usize, usize)) {
     Err(error) => panic!("Failed to convert frames to binary: {}", error),
   };
 
-  println!("Save raw buffer size: {}B", buffer.len());
+  logger::info(format!("Save raw buffer size: {}B", buffer.len()));
 }

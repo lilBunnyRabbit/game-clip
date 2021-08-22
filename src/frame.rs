@@ -25,7 +25,7 @@ impl std::fmt::Display for ClipFrame {
   }
 }
 
-pub fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::ImgVec<rgb::RGBA8> {
+pub fn frame_to_imgvec(frame: &Vec<u8>, dimensions: (usize, usize)) -> imgref::ImgVec<rgb::RGBA8> {
   let mut rbga_vec: Vec<rgb::RGBA8> = Vec::new();
   let mut i = 0;
   while i < frame.len() {
@@ -39,7 +39,7 @@ pub fn frame_to_imgvec(width: usize, height: usize, frame: &Vec<u8>) -> imgref::
     i += 4;
   }
 
-  return imgref::Img::new(rbga_vec, width, height);
+  return imgref::Img::new(rbga_vec, dimensions.0, dimensions.1);
 }
 
 pub fn frames_to_binary(

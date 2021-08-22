@@ -8,7 +8,8 @@ use scrap;
 use utils::logger;
 
 fn main() {
-  let display = match get_display(0) {
+  let config = config::get();
+  let display = match get_display(config.display) {
     Ok(display) => display,
     Err(error) => panic!("Failed to get the display: {}", error),
   };
@@ -20,17 +21,28 @@ fn main() {
 }
 
 fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
-  let mut displays = scrap::Display::all().unwrap();
+  let display: scrap::Display;
 
-  if displays.len() < display_index + 1 {
-    return Err("Display doesn't exist");
+  if display_index == 0 {
+    display = match scrap::Display::primary() {
+      Ok(display) => display,
+      Err(_) => return Err("Failed to fetch primary display")
+    }
+  } else {
+    let mut displays = scrap::Display::all().unwrap();
+
+    if displays.len() < display_index + 1 {
+      return Err("Display doesn't exist");
+    }
+
+    display = displays.remove(display_index);
   }
 
-  let display = displays.remove(display_index);
   logger::info(format!(
-    "Selected display: {}x{}",
+    "Selected display: {}x{}{}",
     display.width(),
-    display.height()
+    display.height(),
+    if display_index == 0 { " (primary)" } else { "" }
   ));
 
   return Ok(display);

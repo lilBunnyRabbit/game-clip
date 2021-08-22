@@ -10,11 +10,11 @@ use std::{
   thread,
   time::{Duration, Instant},
 };
-use utils::{circular_buffer::CircularBuffer, logger, notification};
+use utils::{circular_buffer::CircularBuffer, fps_display::FpsDisplay, logger};
 
 enum Actions {
   SaveGif,
-  _SaveRaw,
+  SaveRaw,
   None,
 }
 
@@ -29,7 +29,7 @@ pub fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize))
   let mut prev_keys: Vec<device_query::Keycode> = vec![];
 
   let frame_time = Duration::new(1, 0) / config.fps;
-
+  let mut fps_display = FpsDisplay::new(config.fps as usize);
   let mut timer = Instant::now();
 
   loop {
@@ -41,7 +41,7 @@ pub fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize))
           delay: delay,
         });
 
-        println!("FPS | {}", (1.0 / delay).round());
+        fps_display.add(1.0 / delay);
 
         timer = Instant::now();
         thread::sleep(frame_time);
@@ -53,14 +53,13 @@ pub fn capture_frames(mut capturer: scrap::Capturer, dimensions: (usize, usize))
     let keys = device_state.get_keys();
     match match_keys(&keys, &prev_keys) {
       Actions::SaveGif => {
-        print!("{:?}", keys);
-        let cloned_frames = frames.clone_buffer(); // Heavy
-        thread::spawn(move || {
-          notification::send_notification("Saving clip");
-          clip::save_gif(cloned_frames, dimensions);
-        });
+        let buffer = frames.clone_buffer(); // Heavy
+        std::thread::spawn(move || clip::save_gif(buffer, dimensions));
       }
-      Actions::_SaveRaw => {}
+      Actions::SaveRaw => {
+        let buffer = frames.clone_buffer(); // Heavy
+        std::thread::spawn(move || clip::save_raw(buffer, dimensions));
+      }
       Actions::None => {}
     }
     prev_keys = keys;
@@ -71,23 +70,25 @@ fn match_keys(
   keys: &Vec<device_query::Keycode>,
   prev_keys: &Vec<device_query::Keycode>,
 ) -> Actions {
-  if keys != prev_keys {
+  if keys == prev_keys {
     return Actions::None;
   }
 
   if keys.len() == 3 {
-    if keys.contains(&Keycode::Numpad7)
-      && keys.contains(&Keycode::Numpad8)
-      && keys.contains(&Keycode::Numpad9)
-    {
-      return Actions::SaveGif;
-    }
-
+    // 7 + 8 + 9 => SaveGif
     if keys.contains(&Keycode::Key7)
       && keys.contains(&Keycode::Key8)
       && keys.contains(&Keycode::Key9)
     {
       return Actions::SaveGif;
+    }
+
+    // Num7 + Num8 + Num9 => SaveRaw
+    if keys.contains(&Keycode::Numpad7)
+      && keys.contains(&Keycode::Numpad8)
+      && keys.contains(&Keycode::Numpad9)
+    {
+      return Actions::SaveRaw;
     }
   }
 
