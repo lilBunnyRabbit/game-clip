@@ -6,7 +6,6 @@ use chrono::prelude::{DateTime, Local};
 use gifski;
 use imgref;
 use rgb;
-use scrap;
 use std::fmt;
 use std::io::Error;
 use std::{fs::File, thread, time::SystemTime};
@@ -40,23 +39,6 @@ impl gifski::progress::ProgressReporter for WriterProgress {
   fn done(&mut self, msg: &str) {
     logger::info(format!("Progress done: {}", msg));
   }
-}
-
-pub fn get_display(display_index: usize) -> Result<scrap::Display, &'static str> {
-  let mut displays = scrap::Display::all().unwrap();
-
-  if displays.len() < display_index + 1 {
-    return Err("Display doesn't exist");
-  }
-
-  let display = displays.remove(display_index);
-  logger::info(format!(
-    "Selected display: {}x{}",
-    display.width(),
-    display.height()
-  ));
-
-  return Ok(display);
 }
 
 pub fn save_gif(frames: Vec<ClipFrame>, dimensions: (usize, usize)) {
